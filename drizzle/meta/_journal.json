@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1789590305005,
+      "tag": "0000_nifty_guardian",
+      "breakpoints": true
+    }
+  ]
+}

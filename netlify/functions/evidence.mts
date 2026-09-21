@@ -5,7 +5,7 @@ import { AppError, checkOrigin, context, evidenceIndex, evidenceStore, responseE
 export default async (request: Request) => {
   try {
     if (request.method === "GET") {
-      const c = await context();
+      const c = await context(request);
       const id = new URL(request.url).searchParams.get("id");
       const index = await evidenceIndex();
       if (id) {
@@ -26,7 +26,7 @@ export default async (request: Request) => {
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
     checkOrigin(request);
     if (Number(request.headers.get("content-length") || 0) > 5 * 1024 * 1024) throw new AppError("Máximo de 4 MB por arquivo.");
-    const c = await context();
+    const c = await context(request);
     const form = await request.formData();
     const task = c.state.tasks.find((item) => item.id === form.get("task"));
     if (!task || !c.person || task.person !== c.person.id) throw new AppError("Você só pode anexar comprovantes aos seus desafios.", 403);

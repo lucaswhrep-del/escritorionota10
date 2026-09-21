@@ -18,7 +18,6 @@
     "@hookform/resolvers": "^5.7.1",
     "@netlify/blobs": "^11.1.0",
     "@netlify/functions": "^6.0.0",
-    "@netlify/identity": "^2.0.0",
     "@shadcn/react": "^0.3.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",

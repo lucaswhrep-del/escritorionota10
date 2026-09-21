@@ -1,5 +1,4 @@
 import { getDeployStore, getStore } from "@netlify/blobs";
-import { getUser } from "@netlify/identity";
 import { initial, type State } from "../../lib/campaign";
 
 export class AppError extends Error {
@@ -18,12 +17,29 @@ export const evidenceStore = () => isProduction()
 
 export type StoredCampaign = { revision: number; state: State };
 
-export async function context() {
-  const user = await getUser();
-  if (!user?.email) throw new AppError("Entre com sua conta para acessar a campanha.", 401);
+type FirebaseUser = { id: string; email: string };
+async function getFirebaseUser(request: Request): Promise<FirebaseUser | null> {
+  const token = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!token) return null;
+  const apiKey = Netlify.env.get("FIREBASE_WEB_API_KEY");
+  if (!apiKey) throw new Error("Firebase Authentication não configurado.");
+  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken: token }),
+  });
+  if (!response.ok) return null;
+  const result = await response.json() as { users?: Array<{ localId: string; email?: string }> };
+  const user = result.users?.[0];
+  return user?.email ? { id: user.localId, email: user.email.toLowerCase() } : null;
+}
+
+export async function context(request: Request) {
+  const user = await getFirebaseUser(request);
+  if (!user) throw new AppError("Sua sessão expirou. Entre novamente.", 401);
   const stored = await campaignStore().get("main", { type: "json" }) as StoredCampaign | null;
   if (!stored) throw new AppError("A campanha ainda precisa ser ativada pelo gestor.", 428);
-  const email = user.email.toLowerCase();
+  const email = user.email;
   const admin = stored.state.admin === user.id;
   const person = stored.state.people.find((item) => item.email && item.email === email);
   if (!admin && !person) throw new AppError("Seu e-mail ainda não foi vinculado à campanha. Solicite o cadastro ao gestor.", 403);
@@ -61,8 +77,8 @@ function configuredEmails() {
 
 export async function bootstrap(request: Request) {
   checkOrigin(request);
-  const user = await getUser();
-  if (!user?.email) throw new AppError("Entre com sua conta.", 401);
+  const user = await getFirebaseUser(request);
+  if (!user) throw new AppError("Entre com sua conta.", 401);
   const adminEmail = Netlify.env.get("ADMIN_EMAIL")?.trim().toLowerCase();
   if (!adminEmail || user.email.toLowerCase() !== adminEmail) throw new AppError("Somente o gestor configurado pode ativar a campanha.", 403);
   const store = campaignStore();

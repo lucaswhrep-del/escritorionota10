@@ -10,7 +10,7 @@ function text(value: unknown, max = 500) {
 export default async (request: Request) => {
   try {
     if (request.method === "GET") {
-      const c = await context();
+      const c = await context(request);
       const people = c.admin ? c.state.people : c.state.people.filter((person) => person.id === c.person!.id);
       const state = {
         ...c.state,
@@ -37,7 +37,7 @@ export default async (request: Request) => {
       await bootstrap(request);
       return Response.json({ ok: true });
     }
-    const c = await context();
+    const c = await context(request);
     if (body.revision !== c.revision) throw new AppError("Os dados foram alterados. Atualize antes de salvar.", 409);
     const state = c.state;
     const month = String(body.month);

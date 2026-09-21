@@ -11,6 +11,14 @@ export const campaignStore = () => getStore("campaign-data", { consistency: "str
 export const evidenceStore = () => getStore("campaign-evidence", { consistency: "strong" });
 
 export type StoredCampaign = { revision: number; state: State };
+const DEFAULT_ADMIN_EMAIL = "lucaswhrep@gmail.com";
+const DEFAULT_PARTICIPANT_EMAILS = [
+  "alexandre.humberto-ext@br.lactalis.com",
+  "damascenobf@gmail.com",
+  "matheusandradewh@gmail.com",
+  "isabel.silva-ext@br.lactalis.com",
+];
+const configuredAdminEmail = () => Netlify.env.get("ADMIN_EMAIL")?.trim().toLowerCase() || DEFAULT_ADMIN_EMAIL;
 
 type FirebaseUser = { id: string; email: string };
 async function getFirebaseUser(request: Request): Promise<FirebaseUser | null> {
@@ -34,7 +42,7 @@ export async function context(request: Request) {
   const store = campaignStore();
   let stored = await store.get("main", { type: "json" }) as StoredCampaign | null;
   if (!stored) {
-    const adminEmail = Netlify.env.get("ADMIN_EMAIL")?.trim().toLowerCase();
+    const adminEmail = configuredAdminEmail();
     if (adminEmail !== user.email) throw new AppError("A campanha ainda precisa ser ativada pelo gestor.", 428);
     stored = { revision: 0, state: initial(user.id, configuredEmails()) };
     await store.setJSON("main", stored);
@@ -66,12 +74,12 @@ export async function save(c: Awaited<ReturnType<typeof context>>, action: strin
 
 function configuredEmails() {
   const raw = Netlify.env.get("PARTICIPANT_EMAILS");
-  if (!raw) return [];
+  if (!raw) return DEFAULT_PARTICIPANT_EMAILS;
   try {
     const value = JSON.parse(raw);
     return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
   } catch {
-    return [];
+    return DEFAULT_PARTICIPANT_EMAILS;
   }
 }
 
@@ -79,8 +87,8 @@ export async function bootstrap(request: Request) {
   checkOrigin(request);
   const user = await getFirebaseUser(request);
   if (!user) throw new AppError("Entre com sua conta.", 401);
-  const adminEmail = Netlify.env.get("ADMIN_EMAIL")?.trim().toLowerCase();
-  if (!adminEmail || user.email.toLowerCase() !== adminEmail) throw new AppError("Somente o gestor configurado pode ativar a campanha.", 403);
+  const adminEmail = configuredAdminEmail();
+  if (user.email.toLowerCase() !== adminEmail) throw new AppError("Somente o gestor configurado pode ativar a campanha.", 403);
   const store = campaignStore();
   const current = await store.get("main");
   if (!current) await store.setJSON("main", { revision: 0, state: initial(user.id, configuredEmails()) });

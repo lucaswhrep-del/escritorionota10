@@ -1,4 +1,4 @@
-import { getDeployStore, getStore } from "@netlify/blobs";
+import { getStore } from "@netlify/blobs";
 import { initial, type State } from "../../lib/campaign";
 
 export class AppError extends Error {
@@ -7,13 +7,8 @@ export class AppError extends Error {
   }
 }
 
-const isProduction = () => Netlify.context?.deploy.context === "production";
-export const campaignStore = () => isProduction()
-  ? getStore("campaign-data", { consistency: "strong" })
-  : getDeployStore("campaign-data", { consistency: "strong" });
-export const evidenceStore = () => isProduction()
-  ? getStore("campaign-evidence", { consistency: "strong" })
-  : getDeployStore("campaign-evidence", { consistency: "strong" });
+export const campaignStore = () => getStore("campaign-data", { consistency: "strong" });
+export const evidenceStore = () => getStore("campaign-evidence", { consistency: "strong" });
 
 export type StoredCampaign = { revision: number; state: State };
 
@@ -21,8 +16,7 @@ type FirebaseUser = { id: string; email: string };
 async function getFirebaseUser(request: Request): Promise<FirebaseUser | null> {
   const token = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!token) return null;
-  const apiKey = Netlify.env.get("FIREBASE_WEB_API_KEY");
-  if (!apiKey) throw new Error("Firebase Authentication não configurado.");
+  const apiKey = Netlify.env.get("FIREBASE_WEB_API_KEY") || "AIzaSyBg3xce3VkN7TurRNd8hpeH-mXpNhjG-gE";
   const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

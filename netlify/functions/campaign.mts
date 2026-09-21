@@ -82,8 +82,9 @@ export default async (request: Request) => {
       if (!task || !c.person || task.person !== c.person.id) throw new AppError("Você só pode enviar seus próprios desafios.", 403);
       if (task.date !== today()) throw new AppError("As entregas são permitidas apenas no dia do desafio, até 23h59 de Brasília.");
       if (!["open", "rejected"].includes(task.status)) throw new AppError("Esta entrega já foi enviada.");
-      if (!(await evidenceIndex()).some((item) => item.task === task.id)) throw new AppError("Anexe um comprovante antes de enviar.");
-      task.comment = text(body.comment, 2000);
+      const comment = text(body.comment, 2000);
+      if (!comment && !(await evidenceIndex()).some((item) => item.task === task.id)) throw new AppError("Escreva um relato ou anexe pelo menos um comprovante antes de enviar.");
+      task.comment = comment;
       task.status = "pending";
       task.submittedAt = new Date().toISOString();
     } else if (body.action === "review") {

@@ -31,8 +31,14 @@ async function getFirebaseUser(request: Request): Promise<FirebaseUser | null> {
 export async function context(request: Request) {
   const user = await getFirebaseUser(request);
   if (!user) throw new AppError("Sua sessão expirou. Entre novamente.", 401);
-  const stored = await campaignStore().get("main", { type: "json" }) as StoredCampaign | null;
-  if (!stored) throw new AppError("A campanha ainda precisa ser ativada pelo gestor.", 428);
+  const store = campaignStore();
+  let stored = await store.get("main", { type: "json" }) as StoredCampaign | null;
+  if (!stored) {
+    const adminEmail = Netlify.env.get("ADMIN_EMAIL")?.trim().toLowerCase();
+    if (adminEmail !== user.email) throw new AppError("A campanha ainda precisa ser ativada pelo gestor.", 428);
+    stored = { revision: 0, state: initial(user.id, configuredEmails()) };
+    await store.setJSON("main", stored);
+  }
   const email = user.email;
   const admin = stored.state.admin === user.id;
   const person = stored.state.people.find((item) => item.email && item.email === email);

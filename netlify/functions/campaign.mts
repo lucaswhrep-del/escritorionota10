@@ -1,6 +1,6 @@
 import type { Config } from "@netlify/functions";
 import { MONTHS, days, today, score } from "../../lib/campaign";
-import { AppError, bootstrap, checkOrigin, context, evidenceIndex, responseError, save } from "./_server.mts";
+import { AppError, bootstrap, checkOrigin, context, evidenceIndex, evidenceStore, responseError, save, type Evidence } from "./_server.mts";
 
 function text(value: unknown, max = 500) {
   if (typeof value !== "string" || value.length > max) throw new AppError("Texto inválido.");
@@ -40,6 +40,7 @@ export default async (request: Request) => {
     const c = await context(request);
     if (body.revision !== c.revision) throw new AppError("Os dados foram alterados. Atualize antes de salvar.", 409);
     const state = c.state;
+    let deletedEvidence: Evidence[] = [];
     const month = String(body.month);
     if (!MONTHS.includes(month)) throw new AppError("Mês inválido.");
     const selected = state.months[month];
@@ -95,6 +96,11 @@ export default async (request: Request) => {
       if (body.status !== "approved" && !reason) throw new AppError("Informe a justificativa.");
       task.status = body.status;
       task.review = reason;
+    } else if (body.action === "delete") {
+      const taskIndex = state.tasks.findIndex((item) => item.id === body.id && item.date.startsWith(month));
+      if (taskIndex < 0) throw new AppError("Desafio não encontrado.", 404);
+      const [removed] = state.tasks.splice(taskIndex, 1);
+      deletedEvidence = (await evidenceIndex()).filter((item) => item.task === removed.id);
     } else if (body.action === "close") {
       if (today() <= days(month).slice(-1)[0]) throw new AppError("O fechamento só fica disponível após o último dia útil do mês.");
       if (state.tasks.some((task) => task.date.startsWith(month) && task.status === "pending")) throw new AppError("Valide todas as entregas pendentes antes de fechar.");
@@ -104,6 +110,12 @@ export default async (request: Request) => {
       throw new AppError("Ação inválida.");
     }
     await save(c, `${body.action} · ${month}${body.id ? " · " + body.id : ""}${body.reason ? " · " + body.reason : ""}`);
+    if (deletedEvidence.length) {
+      const store = evidenceStore();
+      await Promise.all(deletedEvidence.map((item) => store.delete(`files/${item.id}`)));
+      const deletedIds = new Set(deletedEvidence.map((item) => item.id));
+      await store.setJSON("index", (await evidenceIndex()).filter((item) => !deletedIds.has(item.id)));
+    }
     return Response.json({ ok: true });
   } catch (error) {
     return responseError(error);

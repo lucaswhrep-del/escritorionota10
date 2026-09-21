@@ -68,14 +68,15 @@ export default async (request: Request) => {
       selected.excluded = [...new Set(body.excluded)] as string[];
       if (!days(month, selected.excluded).length) throw new AppError("O mês precisa ter ao menos um dia útil.");
     } else if (body.action === "create") {
-      const date = text(body.date, 10);
-      if (!days(month, selected.excluded).includes(date) || date < today()) throw new AppError("Escolha um dia útil atual ou futuro deste mês.");
+      const requestedDates = Array.isArray(body.dates) ? body.dates : [body.date];
+      const dates = [...new Set(requestedDates.map((value: unknown) => text(value, 10)))];
+      if (!dates.length || dates.length > 31 || dates.some((date) => !days(month, selected.excluded).includes(date) || date < today())) throw new AppError("Escolha uma ou mais datas úteis atuais ou futuras deste mês.");
       const ids = body.person === "all" ? state.people.map((person) => person.id) : [body.person];
       if (ids.some((id: string) => !state.people.some((person) => person.id === id))) throw new AppError("Pessoa inválida.");
-      if (state.tasks.some((task) => task.date === date && ids.includes(task.person) && task.submittedAt)) throw new AppError("Os desafios de um dia ficam fixos após a primeira entrega.");
+      if (state.tasks.some((task) => dates.includes(task.date) && ids.includes(task.person) && task.submittedAt)) throw new AppError("Uma das datas escolhidas já possui entrega e não pode receber novos desafios.");
       const title = text(body.title, 150), description = text(body.description, 2000);
       if (!title) throw new AppError("Informe o desafio.");
-      for (const person of ids) state.tasks.push({ id: crypto.randomUUID(), person, date, title, description, status: "open", comment: "", review: "" });
+      for (const date of dates) for (const person of ids) state.tasks.push({ id: crypto.randomUUID(), person, date, title, description, status: "open", comment: "", review: "" });
     } else if (body.action === "submit") {
       const task = state.tasks.find((item) => item.id === body.id && item.date.startsWith(month));
       if (!task || !c.person || task.person !== c.person.id) throw new AppError("Você só pode enviar seus próprios desafios.", 403);

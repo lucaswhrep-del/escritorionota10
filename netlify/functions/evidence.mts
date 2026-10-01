@@ -1,6 +1,6 @@
 import type { Config } from "@netlify/functions";
 import { today } from "../../lib/campaign";
-import { AppError, checkOrigin, context, evidenceIndex, evidenceStore, responseError, type Evidence } from "./_server.mts";
+import { AppError, checkOrigin, context, evidenceIndex, evidenceStore, responseError, save, type Evidence } from "./_server.mts";
 
 export default async (request: Request) => {
   try {
@@ -40,6 +40,10 @@ export default async (request: Request) => {
     const record: Evidence = { id: crypto.randomUUID(), task: task.id, person: task.person, name: file.name.slice(0, 200), size: file.size, created: new Date().toISOString(), type: file.type };
     await store.set(`files/${record.id}`, await file.arrayBuffer());
     await store.setJSON("index", [...index, record]);
+    task.status = "pending";
+    task.submittedAt = new Date().toISOString();
+    task.review = "";
+    await save(c, `submit · ${task.date.slice(0, 7)} · ${task.id} · comprovante anexado`);
     return Response.json({ ok: true });
   } catch (error) {
     return responseError(error);

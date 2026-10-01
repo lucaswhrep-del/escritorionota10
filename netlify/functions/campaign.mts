@@ -91,10 +91,12 @@ export default async (request: Request) => {
     } else if (body.action === "review") {
       const task = state.tasks.find((item) => item.id === body.id && item.date.startsWith(month));
       if (!task || !["approved", "rejected", "waived"].includes(body.status)) throw new AppError("Validação inválida.");
-      if (body.status !== "waived" && task.status !== "pending") throw new AppError("Só é possível validar uma entrega pendente.");
+      const hasLegacyEvidence = ["open", "rejected"].includes(task.status) && (await evidenceIndex()).some((item) => item.task === task.id);
+      if (body.status !== "waived" && task.status !== "pending" && !hasLegacyEvidence) throw new AppError("Só é possível validar uma entrega pendente.");
       const reason = text(body.reason, 1000);
       if (body.status !== "approved" && !reason) throw new AppError("Informe a justificativa.");
       task.status = body.status;
+      if (hasLegacyEvidence && !task.submittedAt) task.submittedAt = new Date().toISOString();
       task.review = reason;
     } else if (body.action === "delete") {
       const taskIndex = state.tasks.findIndex((item) => item.id === body.id && item.date.startsWith(month));

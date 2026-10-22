@@ -78,6 +78,23 @@ export default async (request: Request) => {
       const title = text(body.title, 150), description = text(body.description, 2000);
       if (!title) throw new AppError("Informe o desafio.");
       for (const date of dates) for (const person of ids) state.tasks.push({ id: crypto.randomUUID(), person, date, title, description, status: "open", comment: "", review: "" });
+    } else if (body.action === "import") {
+      const sourceMonth = MONTHS[MONTHS.indexOf(month) - 1];
+      if (!sourceMonth || !Array.isArray(body.ids) || !body.ids.length || body.ids.length > 500) throw new AppError("Selecione desafios do mês anterior.");
+      const sources = body.ids.map((id: unknown) => state.tasks.find(task => task.id === id && task.date.startsWith(sourceMonth)));
+      if (sources.some((task: unknown) => !task)) throw new AppError("Desafio de origem inválido.");
+      if (!Array.isArray(body.dates)) throw new AppError("Selecione as datas de destino.");
+      const dates = [...new Set(body.dates.map((value: unknown) => text(value, 10)))];
+      if (!dates.length || dates.length > 31 || dates.some(date => !days(month, selected.excluded).includes(date) || date < today())) throw new AppError("Escolha datas úteis atuais ou futuras do mês de destino.");
+      let added = 0;
+      for (const source of sources) for (const date of dates) {
+        if (!source) throw new AppError("Desafio de origem inválido.");
+        if (state.tasks.some(task => task.person === source.person && task.date === date && task.submittedAt)) throw new AppError("Uma das datas já possui entrega para esse participante. Escolha outra data.");
+        if (state.tasks.some(task => task.person === source.person && task.date === date && task.title === source.title && task.description === source.description)) continue;
+        state.tasks.push({id:crypto.randomUUID(),person:source.person,date,title:source.title,description:source.description,status:"open",comment:"",review:""});
+        added++;
+      }
+      if (!added) throw new AppError("Os desafios selecionados já existem nas datas escolhidas.");
     } else if (body.action === "submit") {
       const task = state.tasks.find((item) => item.id === body.id && item.date.startsWith(month));
       if (!task || !c.person || task.person !== c.person.id) throw new AppError("Você só pode enviar seus próprios desafios.", 403);
